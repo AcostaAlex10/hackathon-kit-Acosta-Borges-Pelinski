@@ -6,7 +6,8 @@ presupuesto limitado de envíos y poco tiempo. Hackathon IA — FI-UNaM.
 **Equipo:** Acosta · Borges · Pelinski
 
 ```bash
-git clone <URL> hackathon-kit && cd hackathon-kit
+git clone https://github.com/AcostaAlex10/hackathon-kit-Acosta-Borges-Pelinski.git
+cd hackathon-kit-Acosta-Borges-Pelinski
 python bootstrap.py --install
 ```
 

@@ -32,8 +32,8 @@ El kit lleva la contabilidad y genera el probatorio solo.
 ### En una máquina cualquiera (aula, notebook propia)
 
 ```bash
-git clone <URL-DEL-REPO> hackathon-kit
-cd hackathon-kit
+git clone https://github.com/AcostaAlex10/hackathon-kit-Acosta-Borges-Pelinski.git
+cd hackathon-kit-Acosta-Borges-Pelinski
 python bootstrap.py --install
 ```
 
