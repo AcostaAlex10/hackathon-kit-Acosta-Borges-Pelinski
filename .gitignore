@@ -1,0 +1,28 @@
+# entorno local (500 MB, especifico de cada maquina: se reconstruye con bootstrap.py)
+.venv/
+venv/
+env/
+
+# datos generados: los scripts de tests/ los reconstruyen identicos (semillas fijas)
+tests/fake_data/
+tests/ensayo_data/
+
+# datos del desafio real: NUNCA subir el dataset de la catedra al repo
+data/
+*.zip
+
+# salidas de trabajo
+work/
+*.npy
+*.pkl
+*.joblib
+
+# python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+
+# sistema
+.DS_Store
+Thumbs.db
