@@ -9,9 +9,9 @@ mediciones propias sobre `train_sup`, con la métrica oficial del kit de la
 cátedra (`scoring.py`) y validación cruzada agrupada por `machine_id`.
 Ninguna usó el test para entrenar, validar ni ajustar.
 
-**Revisión 2**, tras el benchmark multimodelo de la mañana del jueves
-(`eda_y_benchmark.ipynb`). Lo que cambió: sabemos dónde está el techo tabular y
-sabemos que el algoritmo no es la palanca. La sección 3 se reescribió entera.
+**Revisión 3**, tras los envíos al servidor y el handoff `TRABAJO_DELEGADO.md`.
+Lo que cambió: ya no decidimos con `GroupKFold`, y sabemos cuánto ruido tiene el
+estimador que lo reemplaza. Las secciones 3 y 5 se reescribieron.
 
 ---
 
@@ -121,117 +121,91 @@ que separa el falso negativo de $15 del de $5.
 
 ## 3. Plan de modelado
 
-### Lo medido
+### 3.1 El estimador es el problema, no el modelo
 
-Todo en OOF, `StratifiedGroupKFold(5)` agrupado por `machine_id`, features
-originales más su z-score por máquina.
+Tres envíos al servidor: **28**, **43,42** y **48,1150**. El de 43,42 venía de
+una configuración que daba ~48 en `GroupKFold`. Esa brecha define todo el
+trabajo posterior.
 
-| Configuración | Final | Cost | Prob | Diag |
-|---|---|---|---|---|
-| P0 prevalencia (baseline oficial) | 29.05 | 20.00 | 75.25 | 0.00 |
-| LGBM 14 clases, sin normalizar | 43.21 | 34.21 | 78.46 | 35.71 |
-| + afilado alpha=2 (descartado) | 42.69 | 33.98 | 75.28 | 38.48 |
-| + z-score por máquina | 47.17 | 39.13 | 79.75 | 38.24 |
-| **Ensamble LGB + RF + RegLogística** | **49.36** | 41.47 | 82.58 | 38.10 |
-| Oráculo (etiquetas exactas) | 73.96 | 62.80 | 100.0 | 100.0 |
+`StratifiedGroupKFold` por `machine_id` mide *"máquina nueva, mismo régimen"*.
+El test es *"máquina nueva, régimen nuevo"*: sus 22 máquinas son todas distintas
+a las 26 del train **y** operan en otro punto de trabajo (`rpm_mean` 1742→2052,
+`delta_p_mean` 0,51→2,61, cinco veces mayor).
 
-### El algoritmo no es la palanca
+El reemplazo es entrenar con las máquinas lentas y validar con las rápidas. Pero
+**con un solo corte ese estimador engaña**. Medido sobre cinco cortes
+(k = 11…15 máquinas lentas a ajuste):
 
-Seis algoritmos como clasificadores multiclase de 14 estados, misma partición,
-mismas features:
+| Configuración | k=11 | k=12 | **k=13** | k=14 | k=15 | media | sd |
+|---|---|---|---|---|---|---|---|
+| Intento3 tal cual | 42,98 | 43,70 | **45,90** | 43,48 | 43,06 | 43,83 | 1,07 |
+| sin duplicados | 44,19 | 43,34 | **43,82** | 41,75 | 43,62 | 43,34 | 0,84 |
+| sin redundancia | 43,13 | 42,65 | **46,55** | 44,79 | 44,10 | 44,24 | 1,37 |
+| + secuencia | 44,60 | 44,10 | **44,71** | 43,47 | 43,19 | 44,01 | 0,60 |
 
-| Modelo | final | cost | prob | diag | acc_familia | sd_folds |
-|---|---|---|---|---|---|---|
-| LightGBM | 47.17 | 39.13 | 79.75 | 38.24 | 0.635 | 1.79 |
-| XGBoost | 46.95 | 38.68 | 80.71 | 37.37 | 0.637 | 3.15 |
-| CatBoost | 46.29 | 37.43 | 82.72 | 35.41 | 0.605 | 2.93 |
-| RandomForest | 45.53 | 37.37 | 83.14 | 27.47 | 0.605 | 2.31 |
-| ExtraTrees | 45.39 | 38.22 | 82.37 | 21.61 | 0.595 | 2.83 |
-| RegLogística | 42.71 | 34.20 | 76.08 | 35.58 | 0.583 | 6.21 |
+**El desvío del estimador es 1,0 y las diferencias entre configuraciones son
+0,75.** El corte k=13, que era el único que usábamos, es el más optimista de los
+cinco en dos de las cuatro configuraciones.
 
-Los seis caen dentro de 4.5 puntos, un margen más chico que el desvío entre
-folds de varios de ellos. Repetido con otra semilla de partición (2024), **el
-ranking se reordena por completo**: RandomForest pasa de cuarto a primero
-(45.79), CatBoost de tercero a último (44.26), y LightGBM baja de 47.17 a 45.62
-sin que cambie nada del modelo.
+**Regla operativa:** el juez es el promedio de cinco cortes, y nada se acepta
+por menos de ~2 puntos salvo que haya un argumento que no sea el score.
 
-Un ranking que se da vuelta al cambiar la partición no mide calidad de
-algoritmo, mide ruido. **Buscar un modelo mejor es tiempo perdido**, y el tuneo
-de hiperparámetros más todavía: mueve menos que el cambio de familia de modelo,
-que ya vimos que no mueve nada.
+### 3.2 Qué sobrevivió del handoff
 
-### Lo que sí funciona: ensamble con diversidad deliberada
+| Propuesta | Medido (5 cortes) | Veredicto |
+|---|---|---|
+| Limpiar redundancia (17 pares > 0,95) | 43,83 → 44,24 | se adopta **por parsimonia**: 174 → 142 columnas |
+| Componentes de secuencia + factor de potencia | 43,83 → 44,01 | **descartada**: dentro del ruido |
+| Modelo jerárquico familia → falla | 44,76 → 42,10 | **descartada**: empeora |
+| Cobertura de combos (rama One-vs-Rest) | 44,76 → 45,21 | se adopta **como seguro**, no por el score |
 
-Nadie gana en las tres componentes. Los boosters (LightGBM, XGBoost) ganan en
-`diag_score` porque discriminan mejor; los bagging y CatBoost ganan en
-`prob_score` porque salen mejor calibrados. El promedio simple de
-probabilidades captura las dos cosas:
+### 3.3 Elección de ensamble
 
-| Ensamble | semilla 42 | semilla 2024 | ventaja |
-|---|---|---|---|
-| LightGBM solo | 47.17 | 45.62 | — |
-| LGB + XGB | 47.77 | 45.85 | +0.61 / +0.23 |
-| LGB + XGB + Cat | 47.85 | 46.84 | +0.69 / +1.22 |
-| LGB + XGB + Cat + RF | 47.87 | 47.29 | +0.70 / +1.67 |
-| **LGB + RF + RegLogística** | **49.36** | **47.65** | **+2.19 / +2.03** |
+| Ensamble | GroupKFold | Régimen (5 cortes) |
+|---|---|---|
+| lgb+et | 54,06 | 44,89 ± 1,78 |
+| **lgb+et+rf** | 54,06 | **44,76 ± 0,95** |
+| lgb | 51,92 | 44,24 ± 1,37 |
+| lgb+et+rf+lr | 53,05 | 42,84 ± 0,63 |
+| lgb+rf+lr | 53,27 | 42,19 ± 1,62 |
+| lr solo | 49,14 | 38,17 ± 1,52 |
 
-El ganador salió de buscar entre las 41 combinaciones posibles sobre la misma
-partición, así que se lo trató como sospechoso de sobreajuste de selección y se
-lo verificó con la semilla de control. **Sobrevivió casi intacto** (+2.19 y
-+2.03): la ventaja es real.
+Los cuatro punteros están empatados dentro del ruido. Lo que **sí** supera el
+ruido: **toda combinación con regresión logística cae dos puntos**, porque
+transfiere mal a régimen nuevo. Se elige `lgb+et+rf` por tener el desvío más
+bajo del grupo empatado — criterio de estabilidad, no de score.
 
-Por qué funciona: la regresión logística es el peor modelo individual de los
-seis y es la que hace andar el ensamble. Es la única lineal, y sus errores están
-descorrelacionados de los de los árboles. En un promedio, la diversidad vale más
-que la calidad individual.
+### 3.4 Receta actual
 
-### El techo tabular
+Features físicas adimensionales (normalizadas por rpm, térmicas contra `Tamb`,
+leyes de afinidad de bombas) más su z-score por `machine_id`, sin las 12
+columnas redundantes: **142 columnas**. Ensamble `lgb+et+rf`, promedio
+geométrico por sesión, mezcla One-vs-Rest con peso 0,3. `n_jobs=1` en todos
+lados. Notebook: `machine_health_v4.ipynb`.
 
-**Alrededor de 48 puntos** (48.50 promediando las dos particiones, 49.36 en el
-mejor caso), contra 29.05 del piso y 73.96 del oráculo: unos dos tercios de lo
-alcanzable.
+### 3.5 Orden de trabajo, revisado
 
-Que seis algoritmos con sesgos inductivos muy distintos converjan al mismo
-número es la definición operativa de un techo: el límite no está en el modelo,
-está en la información que traen las features.
+1. **Calibración.** Sigue sin explotarse y no necesita features nuevas.
+2. **Más cortes de régimen.** Con diez en vez de cinco el desvío bajaría a ~0,7
+   y se podrían aceptar mejoras de un punto en vez de dos. Es lo que más
+   destraba el resto.
+3. **Señales crudas, con el retorno corregido a la baja.** El handoff midió que
+   sólo F03/F04/F05 son difíciles de separar (AUC 0,69–0,71) y que el resto ya
+   está resuelto. Esas tres pesan casi sólo en `diag_score`, que es el 10 % del
+   score. **Esto invierte la prioridad que veníamos asumiendo.**
 
-Dónde se traba, concretamente: la accuracy de **familia** se estanca en
-0.60-0.64 en los seis modelos, y `cost_score` —el 70 % del score— paga
-exactamente por ella. Las seis fallas mecánicas se confunden entre sí porque la
-tabla trae un solo armónico por canal (1x y 2x), y las frecuencias que las
-separan (BPFO, BPFI, BSF) no están ahí.
+### 3.6 Lo descartado y por qué
 
-### Orden de trabajo, revisado
-
-1. **Ensamble por promedio simple.** LightGBM + RandomForest + regresión
-   logística. Sale de modelos ya entrenados: es la mejora más barata que queda.
-   Incluir el modelo lineal aunque sea el peor individual.
-2. **Features espectrales desde los NPZ.** BPFO, BPFI, BSF, bandas de
-   envolvente. Es lo único que ataca la confusión intra-familia mecánica y la
-   única vía para romper 50.
-3. **Features de dominio eléctricas.** Desequilibrio de tensión y de corriente
-   entre fases: F08-F11 son las cuatro eléctricas y hoy se confunden.
-4. **Features hidráulicas.** `delta_p` contra caudal, para separar cavitación
-   (F12) de obstrucción (F13).
-5. **Calibración.** `prob_score` pesa 20 % y está en 80-83.
-6. **Umbral de diagnóstico.** `macro_f1` corta en 0.5 fijo; `diag_score` pesa
-   10 % y está en 36, que es donde más margen relativo queda. No requiere
-   features nuevas.
-
-### Lo descartado y por qué
-
-- *Afilado o distorsión de probabilidades para forzar acciones:* medido, empeora
-  el score. La capa de decisión ya está óptima (99.1 % de coincidencia).
-- *13 clasificadores binarios independientes:* el train no tiene combos; el
-  softmax de 14 estados aprovecha la restricción y da probabilidades coherentes.
-- *Normalización por `session_id`:* empeora (43.21 -> 42.22). La sesión tiene
-  una sola condición, así que normalizar por sesión borra la falla.
-- *Búsqueda de un algoritmo mejor:* seis probados, el ranking no es estable
-  entre particiones. Cerrado.
-- *Tuneo de hiperparámetros:* mueve menos que el cambio de familia de modelo.
-  No se invierte tiempo hasta tener features nuevas.
-- *Mezcla jerárquica (modelo de 5 familias + reparto interno):* aporta +0.32,
-  dentro del ruido. Queda superada por el ensamble, que da +2 y sí replica.
+- *Afilado de probabilidades:* la capa de decisión de la métrica ya es óptima
+  (99,1 % de coincidencia con la acción óptima bajo nuestro posterior).
+- *13 binarios independientes como modelo principal:* el train no tiene combos;
+  el softmax aprovecha la restricción. Sí se usan como rama de cobertura.
+- *Normalización por `session_id`:* borra la falla, que es constante en la sesión.
+- *Rango percentil por máquina:* 51,9 en `GroupKFold` y 41,8 bajo régimen.
+- *Búsqueda de algoritmo y tuneo de hiperparámetros:* mueven menos que el ruido.
+- *Componentes de secuencia, modelo jerárquico:* medidos arriba, no pasan.
+- *Decidir con un solo corte de régimen:* medido, el corte k=13 es el más
+  optimista en la mitad de los casos.
 
 ---
 
@@ -248,9 +222,9 @@ Plan mientras no se confirme, asumiendo el régimen restrictivo:
 
 | Envío | Cuándo | Qué pregunta responde |
 |---|---|---|
-| 1 | apenas esté | ensamble LGB+RF+RegLog (49.36 OOF): calibrar el gap OOF vs ranking |
-| 2-3 | jueves tarde | features espectrales de los NPZ |
-| 4-5 | jueves tarde | features eléctricas e hidráulicas de dominio |
+| 1-3 | ya hechos | 28, 43,42 y **48,1150**. Calibraron la brecha estimador↔servidor |
+| 4 | próximo | v4: redundancia limpia + cobertura OvR (estimado 47-49) |
+| 5-6 | jueves tarde | calibración; más cortes de régimen |
 | 6 | jueves 17:30 | cierre del día, red de seguridad |
 | 7-8 | viernes | calibración y umbral de diagnóstico |
 | 9 | viernes | ensamble final ampliado |
@@ -271,13 +245,12 @@ familias a la vez. Mitigación barata: mezclar una fracción chica de un modelo 
 sin costo. Es el riesgo más serio de todo el plan porque es el único que no
 podemos medir con los datos que tenemos.
 
-**Dataset chico y OOF ruidoso.** 1750 filas y 46 features. El benchmark dejó
-medido cuánto ruido tiene la validación: cambiar sólo la semilla de partición
-mueve el `final_score` de un mismo modelo hasta 1.5 puntos, y el desvío entre
-folds va de 1.7 a 6.2 según el algoritmo. **Ninguna mejora menor a ~2 puntos se
-acepta sin verificarla con una segunda semilla de partición**, que es
-exactamente lo que salvó al ensamble de ser descartado como ruido. Pocas
-rondas, cambios grandes.
+**Todo estimador que tenemos es ruidoso, y ahora sabemos cuánto.** El n
+efectivo es de 250 sesiones, no 1750 ventanas. `GroupKFold` mueve hasta 1,5
+puntos con sólo cambiar la semilla; el corte por régimen tiene desvío 1,0 entre
+cortes. **Ninguna mejora menor a ~2 puntos se acepta sin promediar cinco
+cortes.** Ya nos costó dos veces: primero eligiendo `lgb+rf+lr` con
+`GroupKFold`, después leyendo el corte k=13 como si fuera el valor verdadero.
 
 **Las señales crudas pueden no llegar a tiempo.** Si los NPZ no se pueden bajar
 o procesar, el plan se queda en los pasos 2 a 5, que valen bastante menos. Plan
