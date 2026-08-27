@@ -10,6 +10,10 @@ Si termina con `AUTOTEST OK`, el kit funciona en esa máquina. Si LightGBM no
 instala, degrada solo a scikit-learn y sigue andando.
 
 **Empezá por [GUIA_EQUIPO.md](GUIA_EQUIPO.md).**
+ Link Drives:
+ participant_kit: https://drive.google.com/uc?id=1FKuxVH--rRJiK8tzfT_T8BW1WVj8v6wV
+ datos: https://drive.google.com/uc?id=1egI4fn6_DSu6gpyguU5pWX93J7jDTxB5
+ datos_sinraw: https://drive.google.com/uc?id=1fd4f0MuMiuUT0IEZxfLONMF6gD4hGIND
 
 ---
 
