@@ -1,6 +1,6 @@
 # Guía del equipo — hackathon-kit
 
-Para Acosta, Borges y Pelinski. Si tenés 5 minutos, leé la sección 1 y la 6.
+Para Acosta, Borges y Pelinski. Si tenés 5 minutos, leé la sección 1 y la 7.
 Si tenés 30, leé todo y hacé el ensayo.
 
 ---
@@ -109,13 +109,66 @@ calcula la correlación entre nuestra validación y el ranking.
 Genera el probatorio como notebook **autocontenido**: los resultados van
 embebidos, así que corre en una carpeta vacía sin reentrenar.
 
+### `ic_kit/eda.py` — el EDA prearmado
+`EDA(train, target, test, C, clases).todo()` responde de una las preguntas que
+bajo costo asimétrico cambian decisiones: cómo se reparte el target y cuánta
+**exposición al costo** aporta cada clase, qué columnas traen anomalías, qué
+variables separan la **clase cara** (que casi nunca es la más frecuente), si
+train y test se parecen, y qué costo dan las estrategias triviales — el piso
+que hay que superar. Guarda las figuras numeradas (`fig01_...png`) para pegar
+en el informe, y `.zip()` las descarga.
+
+### `ic_kit/checkpoints.py` — que Colab no nos cueste 40 minutos
+`oof_con_checkpoint()` es igual a `oof_lgb` pero guarda después de cada fold.
+Si la sesión se corta en el fold 12 de 15, reejecutar la celda retoma en el 12.
+Escritura atómica (a `.tmp` y después `os.replace`, así una caída no corrompe
+el checkpoint anterior), guarda el estado del generador aleatorio, y espeja en
+Drive si está montado — el disco de Colab se borra al reiniciar el entorno.
+
+### `ic_kit/bitacora.py` — lo que después se califica
+El probatorio se evalúa por las **hipótesis, hallazgos, decisiones y
+descartes**, no por las métricas. Eso no se reconstruye a las 09:30 del
+viernes. Se anota en una línea mientras pasa:
+
+```python
+bit.hipotesis("El lactato concentra la señal de gravedad")
+bit.hallazgo("Fuga en orden_trabajo", "AUC en solitario = 0.92", "descartada")
+bit.decision("Mínimo costo esperado en vez de argmax", "1.345 -> 0.997")
+bit.descarte("Pseudo-etiquetado", "no bajó el costo OOF")
+```
+
+`generar_notebook()` lee la bitácora sola y arma esas secciones.
+
 ### `ic_kit/vision.py` — desafíos de imágenes
 timm, TTA, detección de duplicados por hash perceptual (para que el CV no
 mienta) y detección de etiquetas mal puestas.
 
 ---
 
-## 4. Los dos scripts que hacen todo
+## 4. Los notebooks base
+
+Son la plantilla de arranque, con el mismo formato que usa la cátedra:
+
+| Notebook | Cuándo |
+|---|---|
+| `notebooks/BASE_tabular.ipynb` | desafío con CSV |
+| `notebooks/BASE_vision.ipynb` | desafío con imágenes (Keras, como la cátedra) |
+| `notebooks/arranque_colab.ipynb` | esqueleto mínimo si preferís armarlo a mano |
+
+Traen ya resueltos: clonado del repo, EDA completo, detección de anomalías,
+limpieza, modelo con reanudación, decisión de costo, envío validado y
+probatorio. **Lo único que se toca al empezar es la celda `Configuración`**:
+target, id, `CLASES` en el orden de la consigna y la matriz de costos. Tienen
+`assert` que frenan si el orden no coincide.
+
+El de visión mantiene Keras/TF para no cambiar de stack en plena competencia, e
+incluye reanudación por época, descongelado en dos etapas, aumentación fuerte
+de color (la defensa contra el atajo de fondo) y promediado con espejado en la
+predicción.
+
+---
+
+## 5. Los dos scripts que hacen todo
 
 ```bash
 # Tabular: de CSV a submit.csv, con auditoría y decisión de costo incluidas
@@ -129,11 +182,11 @@ python run_vision.py --train data/train --submit data/only_submit \
 
 Para un desafío nuevo, la matriz de costos se pone en `ic_kit/costs.py` o se
 pasa como CSV con `--cost ruta.csv`, **más `--classes "a;b;c"` en el mismo
-orden que las filas de la matriz**. Ver sección 6.
+orden que las filas de la matriz**. Ver sección 7.
 
 ---
 
-## 5. Practicá antes: el ensayo
+## 6. Practicá antes: el ensayo
 
 Hay un desafío falso completo con 10 trampas plantadas y solución sellada.
 
@@ -149,7 +202,7 @@ antes de terminar**, tiene las respuestas.
 
 ---
 
-## 6. Los cinco errores que nos pueden costar el puesto
+## 7. Los cinco errores que nos pueden costar el puesto
 
 **El orden de las clases.** Si las etiquetas son texto, pandas las ordena
 alfabéticamente (`Crítico, Muy urgente, No urgente, Urgente`) y la matriz de
@@ -172,7 +225,7 @@ envío del día tiene que ser el mejor archivo, aunque ya lo hayamos mandado.
 
 ---
 
-## 7. Cómo trabajamos entre nosotros
+## 8. Cómo trabajamos entre nosotros
 
 Ramas: `herramientas` es el kit estable. Cada uno tiene la suya —`Acosta`,
 `Borges`, `Pelinski`— para experimentar sin pisarse.
@@ -197,7 +250,7 @@ siempre quiere mandar una más.
 
 ---
 
-## 8. Mapa de documentos
+## 9. Mapa de documentos
 
 | Archivo | Cuándo leerlo |
 |---|---|

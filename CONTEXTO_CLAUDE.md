@@ -61,6 +61,11 @@ Tu entregable de la primera hora es un `STRATEGY.md` (formato en la sección 7).
 | `ic_kit/traps.py` | **detector de trampas del dataset** |
 | `ic_kit/submit.py` | validador de formato + gestor de los 10 envíos |
 | `ic_kit/probatorio.py` | genera el probatorio como notebook autocontenido |
+| `ic_kit/eda.py` | EDA prearmado orientado a la métrica, con figuras numeradas |
+| `ic_kit/checkpoints.py` | reanudación tras caída de Colab, escritura atómica |
+| `ic_kit/bitacora.py` | registro de hipótesis/hallazgos/decisiones/descartes |
+| `notebooks/BASE_tabular.ipynb` | **plantilla de arranque para desafío con CSV** |
+| `notebooks/BASE_vision.ipynb` | **plantilla para imágenes (Keras, stack de la cátedra)** |
 | `bootstrap.py` | arranque y autotest en una máquina desconocida |
 | `PLAYBOOK_HACKATHON.md` | **cronograma real del evento, roles, presupuesto** |
 | `tests/make_fake_challenge.py` | desafío sintético tipo triaje, para ensayar |
@@ -142,6 +147,21 @@ sub_mod.diff_vs("nuevo.csv", "anterior.csv")    # % de filas que cambian
 log = sub_mod.SubmitLog(lower_is_better=False)  # ¡ajustá según la métrica!
 log.can_submit(); log.record(file, cv=..., notes=...); log.set_lb(n, lb); log.report()
 ```
+
+### eda.py / checkpoints.py / bitacora.py
+```python
+eda.EDA(train, target, test=test, C=C, clases=CLASES, id_col=ID).todo()
+checkpoints.oof_con_checkpoint(X, y, Xte, C=C, nombre="oof")   # reanuda por fold
+checkpoints.montar_drive()
+bit = bitacora.Bitacora(); bit.hipotesis(...); bit.hallazgo(t, evidencia, decision)
+bit.decision(t, evidencia); bit.descarte(t, motivo); bit.mostrar()
+```
+La bitácora es lo que llena las secciones del probatorio que se califican.
+`generar_notebook()` la lee sola desde `work/bitacora.json`.
+
+**Empezá desde `notebooks/BASE_tabular.ipynb` o `BASE_vision.ipynb`**, no desde
+cero: ya traen el recorrido completo y sólo hay que completar la celda de
+configuración.
 
 ### probatorio.py — los últimos 30 minutos
 ```python

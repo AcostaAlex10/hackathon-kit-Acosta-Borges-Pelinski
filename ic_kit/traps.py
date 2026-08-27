@@ -331,42 +331,63 @@ def estimate_test_prior(proba_test, prior_train, n_iter=200, tol=1e-7,
     return pr, w
 
 
-def validate_prior_em(oof_proba, y, shifts=((0.5, 2.0), (2.0, 0.5)), seed=42,
+def validate_prior_em(oof_proba, y, shifts=((0.5, 2.0), (2.0, 0.5), (3.0, 0.4),
+                                            (0.4, 3.0)), repeticiones=5, seed=42,
                       verbose=True) -> dict:
     """¿El EM de prior funciona en MI dataset? Se comprueba, no se supone.
 
-    Remuestrea el OOF para fabricar un prior conocido distinto del original,
-    corre `estimate_test_prior` y mide cuánto se acerca al prior verdadero.
-    Si el error del EM no es bastante menor que el de no corregir nada, el
-    método no sirve para tus datos y hay que usar `bayes_decision` pelado.
+    Fabrica un prior conocido remuestreando el OOF, corre `estimate_test_prior`
+    y mide cuánto se acerca. Repite con varias semillas porque un solo
+    remuestreo da un veredicto ruidoso: cerca del umbral, dos corridas del
+    mismo dataset pueden dar respuestas opuestas.
+
+    El veredicto sale de la mediana de la reducción relativa del error:
+      >= 0.40  SIRVE           -> aplicar `estimate_test_prior`
+      0.15-0.40 MARGINAL       -> sólo si `class_prior_shift` mostró shift real
+      < 0.15   NO SIRVE        -> `bayes_decision` sin corregir
     """
-    rng = np.random.default_rng(seed)
     oof_proba = np.asarray(oof_proba, dtype=float)
+    oof_proba = oof_proba / oof_proba.sum(axis=1, keepdims=True)
     y = np.asarray(y)
     k = oof_proba.shape[1]
     pr_tr = np.bincount(y, minlength=k) / len(y)
+    idx_por_clase = [np.where(y == c)[0] for c in range(k)]
+
     filas = []
-    for factores in shifts:
-        f = np.ones(k)
-        f[0] = factores[0]
-        f[-1] = factores[1]
-        objetivo = pr_tr * f
-        objetivo = objetivo / objetivo.sum()
-        # remuestreo con reemplazo para alcanzar el prior objetivo
-        idx = np.concatenate([
-            rng.choice(np.where(y == c)[0], size=max(1, int(objetivo[c] * len(y))),
-                       replace=True) for c in range(k)])
-        pr_real = np.bincount(y[idx], minlength=k) / len(idx)
-        pr_em, _ = estimate_test_prior(oof_proba[idx], pr_tr, verbose=False)
-        err_em = float(np.abs(pr_em - pr_real).sum())
-        err_sin = float(np.abs(pr_tr - pr_real).sum())
-        filas.append({"shift": str(factores), "err_sin_corregir": round(err_sin, 4),
-                      "err_em": round(err_em, 4),
-                      "mejora": round(err_sin - err_em, 4)})
+    for r in range(repeticiones):
+        rng = np.random.default_rng(seed + r)
+        for factores in shifts:
+            f = np.ones(k)
+            f[0], f[-1] = factores
+            objetivo = pr_tr * f
+            objetivo = objetivo / objetivo.sum()
+            idx = np.concatenate([
+                rng.choice(idx_por_clase[c], size=max(1, int(objetivo[c] * len(y))),
+                           replace=True) for c in range(k)])
+            pr_real = np.bincount(y[idx], minlength=k) / len(idx)
+            pr_em, _ = estimate_test_prior(oof_proba[idx], pr_tr, verbose=False)
+            err_sin = float(np.abs(pr_tr - pr_real).sum())
+            err_em = float(np.abs(pr_em - pr_real).sum())
+            filas.append({"shift": str(factores), "rep": r,
+                          "err_sin_corregir": err_sin, "err_em": err_em,
+                          "reduccion": (err_sin - err_em) / max(err_sin, 1e-9)})
     df = pd.DataFrame(filas)
-    sirve = bool((df.err_em < 0.6 * df.err_sin_corregir).all())
+    resumen = (df.groupby("shift")[["err_sin_corregir", "err_em", "reduccion"]]
+               .median().round(4).reset_index())
+    red = float(df.reduccion.median())
+    veredicto = ("SIRVE" if red >= 0.40 else
+                 "MARGINAL" if red >= 0.15 else "NO SIRVE")
     if verbose:
-        print(df.to_string(index=False))
-        print("VEREDICTO: el EM de prior %s en este dataset"
-              % ("SIRVE" if sirve else "NO SIRVE -> usá bayes_decision sin corregir"))
-    return {"tabla": df, "sirve": sirve}
+        print(resumen.to_string(index=False))
+        print("reduccion mediana del error de prior: %.1f%% (%d escenarios)"
+              % (100 * red, len(df)))
+        print("VEREDICTO: %s" % veredicto)
+        if veredicto == "SIRVE":
+            print("  -> aplicar estimate_test_prior sobre las probabilidades de test")
+        elif veredicto == "MARGINAL":
+            print("  -> aplicarlo SOLO si class_prior_shift mostro un shift real,")
+            print("     y verificar que el envio no cambie mas de lo razonable")
+        else:
+            print("  -> usar bayes_decision sin corregir el prior")
+    return {"tabla": resumen, "reduccion": red, "veredicto": veredicto,
+            "sirve": veredicto == "SIRVE"}

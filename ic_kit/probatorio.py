@@ -88,6 +88,7 @@ def generar_notebook(grupo: str, desafio: str, metrica: str, integrantes=(),
                      audit_csv="work/audit.csv", report_json="work/report.json",
                      submit_log="work/submits.json",
                      trampas=(), decisiones=(), descartado=(), hipotesis=(),
+                     bitacora="work/bitacora.json",
                      salida="work/PROBATORIO.ipynb") -> Path:
     """Escribe el probatorio como .ipynb autocontenido. Devuelve la ruta.
 
@@ -114,6 +115,18 @@ def generar_notebook(grupo: str, desafio: str, metrica: str, integrantes=(),
     if clases is None and isinstance(C, str) and C in predef:
         clases = predef[C][1]
     oof_a, y_a = _cargar(oof), _cargar(y)
+
+    # La bitacora de la jornada completa lo que no se paso a mano.
+    if bitacora and Path(bitacora).exists():
+        from .bitacora import Bitacora
+        b = Bitacora(bitacora, verbose=False).para_probatorio()
+        hipotesis = list(hipotesis) or b["hipotesis"]
+        trampas = list(trampas) or b["trampas"]
+        decisiones = list(decisiones) or b["decisiones"]
+        descartado = list(descartado) or b["descartado"]
+        print("  bitacora leida: %d hipotesis, %d hallazgos, %d decisiones, "
+              "%d descartes" % (len(b["hipotesis"]), len(b["trampas"]),
+                                len(b["decisiones"]), len(b["descartado"])))
 
     rep = _leer_json(report_json) or {}
     envios = _leer_json(submit_log) or []
