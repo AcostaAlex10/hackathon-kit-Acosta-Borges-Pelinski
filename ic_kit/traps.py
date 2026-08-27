@@ -300,7 +300,7 @@ def estimate_test_prior(proba_test, prior_train, n_iter=200, tol=1e-7,
     el modelo predice sobre el test — nunca sus etiquetas. Es completamente
     legítimo: no mira el target, sólo la distribución de las features.
 
-    ADVERTENCIA MEDIDA, NO TEORICA: en el desafío de ensayo de este kit el EM
+    ADVERTENCIA MEDIDA, NO TEORICA: en pruebas con datos sinteticos el EM
     COLAPSO la clase rara a prior 0 y empeoró el costo de 1.477 a 1.657. Le
     pasa cuando el clasificador es débil o está mal calibrado. NO lo apliques
     a ciegas: corré antes `validate_prior_em` sobre tu propio OOF, que te dice

@@ -21,7 +21,6 @@ Sos el estratega de una competencia de machine learning:
 NO dura 48 h: son **dos medias jornadas, ~10,5 h de reloj y ~9 h efectivas**,
 presencial, en grupos que se arman ese mismo día. Ese documento tiene el
 cronograma hora por hora, el reparto de roles y el presupuesto de envíos.
-`PLAYBOOK.md` (48 h) sirve sólo para los desafíos de cátedra.
 
 Ya existe un kit probado. **Usalo. No lo reescribas.** Si algo le falta,
 extendelo en un módulo nuevo y decilo explícitamente.
@@ -51,7 +50,6 @@ Tu entregable de la primera hora es un `STRATEGY.md` (formato en la sección 7).
 
 | Archivo | Qué resuelve |
 |---|---|
-| `PLAYBOOK.md` | estrategia de 48 h, presupuesto de envíos, errores frecuentes |
 | `run_tabular.py` | baseline tabular completo, de CSV a `submit.csv` |
 | `run_vision.py` | baseline de imágenes (Colab), de carpetas a `submit.csv` |
 | `ic_kit/costs.py` | matrices de costo + decisión bayesiana |
@@ -68,8 +66,6 @@ Tu entregable de la primera hora es un `STRATEGY.md` (formato en la sección 7).
 | `notebooks/BASE_vision.ipynb` | **plantilla para imágenes (Keras, stack de la cátedra)** |
 | `bootstrap.py` | arranque y autotest en una máquina desconocida |
 | `PLAYBOOK_HACKATHON.md` | **cronograma real del evento, roles, presupuesto** |
-| `tests/make_fake_challenge.py` | desafío sintético tipo triaje, para ensayar |
-| `tests/make_ensayo.py` | desafío de ensayo con trampas (ver `ENSAYO_DESAFIO.md`) |
 
 ---
 
@@ -237,7 +233,7 @@ justamente lo que las trampas premian.
 9. Cada mejora se acepta sólo si supera el desvío entre folds.
 
 **Últimas horas**
-10. Checklist final del `PLAYBOOK.md`.
+10. Checklist final del `PLAYBOOK_HACKATHON.md`.
 11. **El último envío debe ser el mejor archivo, aunque ya lo hayas mandado.**
 
 ---

@@ -1,7 +1,6 @@
 # Playbook de la Hackathon IA — UNaM FI
 
-> Reemplaza al `PLAYBOOK.md` de 48 h. **Este evento no dura dos días.**
-> Salió del reglamento y cronograma oficial.
+> **Este evento no dura dos días.** Salió del reglamento y cronograma oficial.
 
 ---
 
@@ -38,8 +37,10 @@ tiene que estar enviado antes del almuerzo del jueves.**
 
 - [ ] Correr `python bootstrap.py` en la máquina que vas a usar. Si es una de
       la facultad, llevá el kit en pendrive y corré `python bootstrap.py --install`.
-- [ ] Hacer el simulacro completo de `ENSAYO_DESAFIO.md` **cronometrado a 3 h**.
-      No para ganarlo: para que el flujo te salga sin pensar.
+- [ ] Corrida de práctica: pasar `notebooks/BASE_tabular.ipynb` de punta a punta
+      sobre un dataset tabular conocido (uno viejo de Kaggle/OpenML, o los datos
+      del desafío del año pasado), **cronometrada**. No para ganar: para que el
+      flujo salga sin pensar el día de la hackathon.
 - [ ] Tener una cuenta de Colab lista y probada, por si la máquina del aula no
       deja instalar nada.
 - [ ] Llevar el kit en pendrive **y** en el drive. La red del aula puede fallar.

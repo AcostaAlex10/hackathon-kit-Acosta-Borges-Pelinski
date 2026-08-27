@@ -93,14 +93,12 @@ def generar_notebook(grupo: str, desafio: str, metrica: str, integrantes=(),
     """Escribe el probatorio como .ipynb autocontenido. Devuelve la ruta.
 
     `oof`, `y` y `C` pueden ser rutas a .npy, arrays, o el nombre de una matriz
-    del kit ("d1", "d2", "ensayo"). Si se pasan, el notebook recalcula en vivo
+    del kit ("d1", "d2"). Si se pasan, el notebook recalcula en vivo
     la comparación entre la clase más probable y la decisión de mínimo costo.
     """
-    from .costs import (COST_D1, COST_D2, COST_ENSAYO,
-                        LABELS_D1, LABELS_D2, LABELS_ENSAYO)
+    from .costs import COST_D1, COST_D2, LABELS_D1, LABELS_D2
 
-    predef = {"d1": (COST_D1, LABELS_D1), "d2": (COST_D2, LABELS_D2),
-              "ensayo": (COST_ENSAYO, LABELS_ENSAYO)}
+    predef = {"d1": (COST_D1, LABELS_D1), "d2": (COST_D2, LABELS_D2)}
 
     def _cargar(x):
         if x is None:

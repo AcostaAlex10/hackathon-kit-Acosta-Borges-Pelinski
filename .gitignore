@@ -3,10 +3,6 @@
 venv/
 env/
 
-# datos generados: los scripts de tests/ los reconstruyen identicos (semillas fijas)
-tests/fake_data/
-tests/ensayo_data/
-
 # datos del desafio real: NUNCA subir el dataset de la catedra al repo
 data/
 *.zip

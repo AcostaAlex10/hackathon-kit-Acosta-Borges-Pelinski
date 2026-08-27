@@ -11,95 +11,78 @@ cd hackathon-kit-Acosta-Borges-Pelinski
 python bootstrap.py --install
 ```
 
-Si termina con `AUTOTEST OK`, el kit funciona en esa máquina.
+Si termina con `AUTOTEST OK`, el kit funciona en esa máquina. Si LightGBM no
+instala, degrada solo a scikit-learn y sigue andando.
+
 **Empezá por [GUIA_EQUIPO.md](GUIA_EQUIPO.md).**
 
 ---
 
-Probado de punta a punta sobre un desafío sintético que imita el Desafío 1
-(triaje) y sobre un ensayo con diez trampas plantadas.
+## Estructura
 
 ```
-hackathon-kit/
 ├── GUIA_EQUIPO.md           <- LEER PRIMERO. Qué hace cada cosa y cómo se usa.
-├── PLAYBOOK_HACKATHON.md    <- cronograma real de la Hackathon FI-UNaM (~10,5 h)
-├── PLAYBOOK.md              <- estrategia de 48 h (desafíos de cátedra)
+├── PLAYBOOK_HACKATHON.md    <- cronograma real de la jornada, roles, envíos
+├── CONTEXTO_CLAUDE.md       <- para pasarle a una sesión de Claude Code
+├── TRASPASO.md              <- estado del proyecto y handoff entre sesiones
 ├── bootstrap.py             <- arranque + autotest en una máquina desconocida
-├── run_tabular.py           <- baseline tabular completo (Desafío 1)
-├── run_vision.py            <- baseline de imágenes (Desafío 2), para Colab
-├── ic_kit/
-│   ├── costs.py             matrices de costo + decisión bayesiana
-│   ├── cleaning.py          auditoría y limpieza de datos sucios
-│   ├── tabular.py           OOF, blend, fit_prior, pseudo-labeling
-│   ├── vision.py            timm, TTA, duplicados, etiquetas ruidosas
-│   ├── traps.py             detector de trampas del dataset
-│   ├── probatorio.py        probatorio como notebook autocontenido
-│   └── submit.py            validador + gestor de los 10 envíos
-├── CONTEXTO_CLAUDE.md       <- para arrancar una sesión nueva de Claude Code
-├── ENSAYO_DESAFIO.md        <- simulacro completo con trampas, para practicar
-├── notebooks/arranque_colab.ipynb <- entrada para sesión en la nube
 ├── requirements.txt
-├── tests/make_fake_challenge.py   <- desafío falso para ensayar
-└── .venv/                   entorno con numpy/pandas/sklearn/lightgbm
+├── run_tabular.py           <- baseline tabular completo, de CSV a submit.csv
+├── run_vision.py            <- baseline de imágenes (Colab con GPU)
+├── notebooks/
+│   ├── BASE_tabular.ipynb   <- plantilla de arranque para desafío con CSV
+│   ├── BASE_vision.ipynb    <- plantilla para imágenes (Keras, stack de cátedra)
+│   └── arranque_colab.ipynb <- esqueleto mínimo para armar a mano
+├── ic_kit/
+│   ├── costs.py             matrices de costo + decisión de mínimo costo
+│   ├── cleaning.py          auditoría y limpieza de datos sucios
+│   ├── eda.py               EDA prearmado orientado a la métrica
+│   ├── traps.py             detector de trampas del dataset
+│   ├── tabular.py           OOF, blend, fit_prior, pseudo-labeling
+│   ├── vision.py            TTA, duplicados, etiquetas ruidosas
+│   ├── checkpoints.py       reanudación tras caída de Colab
+│   ├── bitacora.py          registro de hipótesis/hallazgos/decisiones
+│   ├── submit.py            validador + gestor de los 10 envíos
+│   └── probatorio.py        probatorio como notebook autocontenido
+└── contexto/                material fuente: reglamento, memoria, desafíos previos
 ```
+
+`work/`, `.venv/` y `data/` quedan fuera del repo (`.gitignore`). El dataset del
+desafío **nunca** va al repo.
 
 ## Uso en 30 segundos
 
 ```bash
-cd hackathon-kit
-./.venv/Scripts/python.exe run_tabular.py \
-    --train data/train_labeled.csv --test data/test_features.csv \
+python run_tabular.py --train data/train.csv --test data/test.csv \
     --target nivel_urgencia --id id_paciente --cost d1 --out work/submit.csv
 ```
 
-Eso te da, en una corrida: auditoría de columnas sucias, limpieza, dos modelos,
-blend, decisión óptima según costo, informe de dónde se te va el costo,
-`submit.csv` y su validación.
+En una corrida: auditoría de columnas sucias, limpieza, dos modelos, blend,
+decisión óptima según costo, informe de dónde se va el costo, `submit.csv` y su
+validación.
 
-## Ensayo general (recomendado antes de la hackaton)
-
-```bash
-./.venv/Scripts/python.exe tests/make_fake_challenge.py
-./.venv/Scripts/python.exe run_tabular.py --train tests/fake_data/train_labeled.csv \
-    --test tests/fake_data/test_features.csv --target nivel_urgencia \
-    --id id_paciente --cost d1 --out work/submit_fake.csv
-```
-
-`tests/fake_data/_solucion_oculta.csv` te deja medir tu score real y comprobar
-que tu OOF no miente. En el ensayo el OOF dio `0.574` y el costo real `0.589`
-— gap de 0.015, o sea el arnés de validación es honesto.
+Para la jornada real, arrancá desde `notebooks/BASE_tabular.ipynb` (o
+`BASE_vision.ipynb`): traen el recorrido completo y sólo se toca la celda de
+configuración.
 
 ## Lo que hace distinto a este kit
 
-**Decisión bayesiana.** Con matriz de costos asimétrica, `argmax p(y|x)` no es
-óptimo. Lo óptimo es `argmin_j Σ_i p(i|x)·C[i,j]`, que es
-`costs.bayes_decision(proba, C)`. En el ensayo: costo 0.729 → 0.574 sin tocar
-el modelo.
+**Decisión sensible al costo.** Con matriz de costos asimétrica, `argmax p(y|x)`
+no es óptimo. Lo óptimo es `argmin_j Σ_i p(i|x)·C[i,j]`
+(`costs.bayes_decision`). En pruebas con datos sintéticos bajó el costo de 0.729
+a 0.574 sin tocar el modelo.
 
-**Auditoría de datos sucios.** Las dos consignas avisan que hay errores de
-carga. `cleaning.audit()` detecta números guardados como texto (`"1,25 mmol/L"`),
-centinelas (`-999`), mezcla de unidades (temperatura en °C y °F en la misma
-columna), typos en categóricas y drift train↔test.
+**Detección de trampas.** `traps.run_all()` busca, antes de entrenar, las
+trampas que castigan a las soluciones automáticas: fugas, covariate shift, prior
+shift, orden de filas, atajos de fondo en imágenes, ruido de etiquetas.
 
-**Gestión de envíos.** `SubmitLog` lleva el presupuesto (10 máx., 5 min entre
-envíos), avisa si el archivo es idéntico a uno anterior, y calcula la
-correlación CV↔leaderboard — que es lo que te dice si podés confiar en tu
-validación.
-
-## Colab (Desafío tipo 2, con GPU)
-
-```python
-!pip -q install timm
-!python run_vision.py --train data/train --submit data/only_submit \
-    --cost d2 --model convnext_tiny.fb_in22k --size 320 --epochs 8 --folds 3
-```
-
-Runtime → Cambiar tipo de entorno → GPU. Con T4, `convnext_tiny` a 320 px y
-~2000 imágenes tarda unos 6-8 min por fold.
+**Gestión de envíos y probatorio.** `SubmitLog` lleva el presupuesto de 10
+envíos y la correlación validación↔ranking; `probatorio.generar_notebook()`
+arma el entregable del art. 5 como notebook autocontenido en los últimos 30 min.
 
 ## Adaptar a un desafío nuevo
 
-Lo único específico es la matriz de costos. En `ic_kit/costs.py`:
+Lo único específico es la matriz de costos. En `ic_kit/costs.py`, o como CSV:
 
 ```python
 MI_COSTO = np.array([[0, 1, 5],
@@ -107,6 +90,5 @@ MI_COSTO = np.array([[0, 1, 5],
                      [8, 3, 0]], dtype=float)   # C[real, predicho]
 ```
 
-y pasás `--cost ruta/a/matriz.csv` (sin encabezados) más
-`--classes "clase_a;clase_b;clase_c"` **en el mismo orden que las filas de la
-matriz**.
+y `--cost ruta.csv` más `--classes "a;b;c"` **en el mismo orden que las filas de
+la matriz**.

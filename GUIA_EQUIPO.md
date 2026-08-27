@@ -1,7 +1,7 @@
 # Guía del equipo — hackathon-kit
 
-Para Acosta, Borges y Pelinski. Si tenés 5 minutos, leé la sección 1 y la 7.
-Si tenés 30, leé todo y hacé el ensayo.
+Para Acosta, Borges y Pelinski. Si tenés 5 minutos, leé la sección 1 y la 6.
+Si tenés 30, leé todo.
 
 ---
 
@@ -14,8 +14,9 @@ equivocarse de una manera cuesta mucho más que de otra.
 Tres cosas que este kit resuelve y que casi nadie hace bien bajo presión:
 
 **Uno.** Con costos asimétricos, predecir la clase más probable **no es óptimo**.
-Lo óptimo es elegir la clase de menor costo esperado. En nuestro desafío de
-ensayo eso solo bajó el costo de 1,904 a 1,196 — sin tocar el modelo.
+Lo óptimo es elegir la clase de menor costo esperado. En pruebas con datos
+sintéticos eso solo bajó el costo de 1,904 a 1,196 — sin
+tocar el modelo.
 
 **Dos.** Los datasets vienen con trampas deliberadas. Una columna que en el
 train predice perfecto y en el test está rota te da la mejor validación cruzada
@@ -182,27 +183,11 @@ python run_vision.py --train data/train --submit data/only_submit \
 
 Para un desafío nuevo, la matriz de costos se pone en `ic_kit/costs.py` o se
 pasa como CSV con `--cost ruta.csv`, **más `--classes "a;b;c"` en el mismo
-orden que las filas de la matriz**. Ver sección 7.
+orden que las filas de la matriz**. Ver sección 6.
 
 ---
 
-## 6. Practicá antes: el ensayo
-
-Hay un desafío falso completo con 10 trampas plantadas y solución sellada.
-
-```bash
-python tests/make_ensayo.py
-# leer ENSAYO_DESAFIO.md, resolverlo, y después:
-python tests/score_ensayo.py work/submit.csv
-```
-
-Cronometrate en 3 horas. No es para ganarlo: es para que el flujo salga sin
-pensar el día de la hackathon. **No abras la sección 7 de `ENSAYO_DESAFIO.md`
-antes de terminar**, tiene las respuestas.
-
----
-
-## 7. Los cinco errores que nos pueden costar el puesto
+## 6. Los cinco errores que nos pueden costar el puesto
 
 **El orden de las clases.** Si las etiquetas son texto, pandas las ordena
 alfabéticamente (`Crítico, Muy urgente, No urgente, Urgente`) y la matriz de
@@ -225,7 +210,7 @@ envío del día tiene que ser el mejor archivo, aunque ya lo hayamos mandado.
 
 ---
 
-## 8. Cómo trabajamos entre nosotros
+## 7. Cómo trabajamos entre nosotros
 
 Ramas: `herramientas` es el kit estable. Cada uno tiene la suya —`Acosta`,
 `Borges`, `Pelinski`— para experimentar sin pisarse.
@@ -250,13 +235,13 @@ siempre quiere mandar una más.
 
 ---
 
-## 9. Mapa de documentos
+## 8. Mapa de documentos
 
 | Archivo | Cuándo leerlo |
 |---|---|
 | `GUIA_EQUIPO.md` | ahora (este) |
 | `PLAYBOOK_HACKATHON.md` | antes de la jornada: cronograma, roles, envíos |
-| `ENSAYO_DESAFIO.md` | para practicar |
 | `CONTEXTO_CLAUDE.md` | para pasarle a una sesión de Claude Code |
+| `TRASPASO.md` | estado del proyecto y handoff entre sesiones |
+| `contexto/` | material fuente: reglamento, memoria, desafíos previos |
 | `README.md` | referencia rápida |
-| `PLAYBOOK.md` | sólo para desafíos de cátedra de 48 h |

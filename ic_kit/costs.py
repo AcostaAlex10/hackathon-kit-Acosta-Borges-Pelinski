@@ -126,17 +126,3 @@ def class_weights_from_cost(C: np.ndarray) -> np.ndarray:
     """
     w = C.sum(axis=1) / max(1, (C.shape[1] - 1))
     return w / w.mean()
-
-
-# ------------------------------------------------ Desafio de ensayo (practica)
-LABELS_ENSAYO = ["Normal", "Vigilancia", "Mantenimiento urgente", "Falla inminente"]
-
-COST_ENSAYO = np.array(
-    [
-        [0, 1, 3, 6],      # real Normal
-        [2, 0, 1, 4],      # real Vigilancia
-        [5, 3, 0, 2],      # real Mantenimiento urgente
-        [15, 9, 3, 0],     # real Falla inminente
-    ],
-    dtype=float,
-)
