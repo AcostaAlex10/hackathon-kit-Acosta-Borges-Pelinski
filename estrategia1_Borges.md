@@ -9,9 +9,9 @@ mediciones propias sobre `train_sup`, con la métrica oficial del kit de la
 cátedra (`scoring.py`) y validación cruzada agrupada por `machine_id`.
 Ninguna usó el test para entrenar, validar ni ajustar.
 
-**Revisión 3**, tras los envíos al servidor y el handoff `TRABAJO_DELEGADO.md`.
-Lo que cambió: ya no decidimos con `GroupKFold`, y sabemos cuánto ruido tiene el
-estimador que lo reemplaza. Las secciones 3 y 5 se reescribieron.
+**Revisión 4**. Lo que cambió: el envío de v4 **bajó** el score (48,11 → 47,37)
+y está diagnosticado por qué; y el techo de las señales crudas está cuantificado,
+lo que corrige a la baja el descarte que veníamos arrastrando.
 
 ---
 
@@ -175,24 +175,65 @@ ruido: **toda combinación con regresión logística cae dos puntos**, porque
 transfiere mal a régimen nuevo. Se elige `lgb+et+rf` por tener el desvío más
 bajo del grupo empatado — criterio de estabilidad, no de score.
 
-### 3.4 Receta actual
+### 3.4 La regresión de v4, diagnosticada
 
-Features físicas adimensionales (normalizadas por rpm, térmicas contra `Tamb`,
-leyes de afinidad de bombas) más su z-score por `machine_id`, sin las 12
-columnas redundantes: **142 columnas**. Ensamble `lgb+et+rf`, promedio
-geométrico por sesión, mezcla One-vs-Rest con peso 0,3. `n_jobs=1` en todos
-lados. Notebook: `machine_health_v4.ipynb`.
+El envío de v4 dio **47,3733** contra los **48,1150** de base4. Bajó. La causa
+está aislada, midiendo cada cambio por separado sobre los cinco cortes con el
+ensamble real (no con LightGBM solo, que fue mi error original):
 
-### 3.5 Orden de trabajo, revisado
+| Configuración | final | cost | prob | diag |
+|---|---|---|---|---|
+| 174 columnas (base4) | **45,44** | 37,23 | 81,33 | 31,17 |
+| 142 columnas (v4, sin redundancia) | **44,45** | 36,16 | 81,18 | 29,03 |
+| 142 + sesión | 44,76 | 36,46 | 81,25 | 29,83 |
+| 142 + sesión + OvR (= v4 enviado) | 45,21 | 36,69 | 81,30 | 32,64 |
 
-1. **Calibración.** Sigue sin explotarse y no necesita features nuevas.
-2. **Más cortes de régimen.** Con diez en vez de cinco el desvío bajaría a ~0,7
-   y se podrían aceptar mejoras de un punto en vez de dos. Es lo que más
-   destraba el resto.
-3. **Señales crudas, con el retorno corregido a la baja.** El handoff midió que
-   sólo F03/F04/F05 son difíciles de separar (AUC 0,69–0,71) y que el resto ya
-   está resuelto. Esas tres pesan casi sólo en `diag_score`, que es el 10 % del
-   score. **Esto invierte la prioridad que veníamos asumiendo.**
+**Quitar las 12 columnas redundantes cuesta un punto entero.** El error de
+método: medí ese cambio con LightGBM solo y lo apliqué a un ensamble con
+ExtraTrees y RandomForest. Con `max_features="sqrt"`, las copias correlacionadas
+**aumentan la probabilidad de que una variable útil entre en cada split**: para
+un ensamble de bagging la redundancia no es ruido, es muestreo. La parsimonia
+que buscaba era una mejora para un modelo y un daño para otro.
+
+Los otros dos cambios quedan exonerados:
+
+- *Promedio por sesión:* neutro (+0,02 sobre 174 columnas). Además se verificó
+  que las sesiones del **test** también son homogéneas, sin usar etiquetas:
+  la fracción de ventanas en la clase modal predicha es 0,911 en test contra
+  0,925 en train, y 0,321 barajando las sesiones como control.
+- *Cobertura OvR:* positiva (+0,40 sobre 174 columnas).
+
+**Receta corregida**, medida sobre los cinco cortes con las 174 columnas:
+
+| Configuración | final | sd |
+|---|---|---|
+| lgb+et+rf (como base4) | 45,44 | 1,00 |
+| lgb+et+rf + sesión | 45,46 | 1,11 |
+| **lgb+et+rf + OvR 0,3** | **45,84** | **0,40** |
+| lgb+et+rf + sesión + OvR 0,3 | 45,77 | 1,44 |
+
+Es una mejora de +0,4 sobre base4: real pero chica. **No justifica un envío por
+sí sola**; conviene juntarla con lo que salga de las señales crudas.
+
+### 3.5 El techo de las señales crudas, cuantificado
+
+Veníamos diciendo que el retorno de los NPZ era bajo porque sólo F03/F04/F05
+son difíciles y ésas pesan en `diag_score`, que es el 10 %. **Eso está mal**, y
+el error es mío por repetirlo sin medirlo. Simulando sobre el OOF:
+
+| Escenario | final | cost | prob | diag |
+|---|---|---|---|---|
+| actual | 52,07 | 43,97 | 83,49 | 45,92 |
+| + intra-familia perfecta (rodamientos) | **56,47** | 43,97 | 92,30 | 72,33 |
+| + familia perfecta | **64,84** | 59,03 | 87,12 | 60,98 |
+
+Resolver los rodamientos vale **+4,4 puntos**, no ~1,7. El razonamiento viejo
+sólo contaba `diag_score` y se olvidaba de que concentrar la masa en la falla
+correcta **también mejora el Brier**: `prob_score` sube de 83,5 a 92,3, y eso
+pesa 20 %.
+
+Acertar la familia sigue valiendo más (**+12,8**), y es donde `cost_score`
+tiene los 25 puntos que le faltan para el techo de 62,8.
 
 ### 3.6 Lo descartado y por qué
 
