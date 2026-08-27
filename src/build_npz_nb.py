@@ -81,10 +81,19 @@ FS_DECL = {"acc_radial_a": 20000, "acc_radial_b": 20000, "acc_axial": 20000,
            "voltage_a": 10000, "voltage_b": 10000, "voltage_c": 10000,
            "pressure_in": 200, "pressure_out": 200, "flow": 100, "rpm": 50}
 
-fila = idx.iloc[0]
-ruta = os.path.join(RAW, os.path.basename(str(fila["file"])))
-if not os.path.exists(ruta):
-    ruta = str(fila["file"])          # por si el index ya trae la ruta relativa
+def resolver(f):
+    """El index trae 'raw_signals/S<hash>.npz'. Se prueban las formas posibles."""
+    for c in (str(f), os.path.join(RAW, os.path.basename(str(f))),
+              os.path.join(os.path.dirname(RAW.rstrip("/")), str(f))):
+        if os.path.exists(c): return c
+    return None
+
+fila, ruta = None, None
+for _, r_ in idx.iterrows():                # primera fila cuyo archivo exista de verdad
+    c = resolver(r_["file"])
+    if c: fila, ruta = r_, c; break
+if ruta is None:
+    raise FileNotFoundError("ningun archivo del index se encontro; ajustar RAW")
 print("abriendo:", ruta)
 
 with np.load(ruta, allow_pickle=False) as z:
@@ -229,13 +238,24 @@ sub = m[m.session_id.isin(sel_ses)]
 print("sesiones de prueba:", len(sel_ses), "| ventanas:", len(sub))
 
 def extraer_ventana(z, wid, rpm, canales):
+    """Si el index no declara canales, se derivan de las claves del propio NPZ."""
+    if not canales:
+        canales = [k.split("__", 1)[1] for k in z.files if k.startswith(wid + "__")]
     d = {}
     for ch in canales:
         k = f"{wid}__{ch}"
         if k not in z.files: continue
         x = np.asarray(z[k], float)
-        x = x[np.isfinite(x)]
-        if len(x) < 256: continue
+        malos = ~np.isfinite(x)
+        # el umbral debe ser bajo: pressure_in va a 200 Hz, o sea 200 muestras
+        # por ventana de 1 s. Con 256 se perdia el canal entero en silencio.
+        if malos.all() or len(x) < 64: continue
+        if malos.any():
+            # interpolar en lugar de comprimir: quitar muestras corre la base
+            # temporal y mete armonicos falsos en el espectro
+            if malos.mean() > 0.30: continue
+            ii = np.arange(len(x))
+            x[malos] = np.interp(ii[malos], ii[~malos], x[~malos])
         if ch.startswith("acc"):
             d.update({f"{ch}__{a}": b for a, b in feats_acc(x, FS_ACC, rpm).items()})
         elif ch.startswith("current"):
@@ -253,7 +273,7 @@ def extraer_conjunto(tabla, etiqueta=""):
         try:
             with np.load(ruta, allow_pickle=False) as z:
                 for _, r in g.iterrows():
-                    ch = str(r["channels"]).split("|") if "channels" in r else []
+                    ch = str(r["channels"]).split("|") if "channels" in r and pd.notna(r["channels"]) else []
                     d = extraer_ventana(z, str(r["window_id"]), float(r["rpm_mean"]), ch)
                     if d: d["window_id"] = str(r["window_id"]); filas.append(d)
         except Exception as e:
@@ -267,6 +287,19 @@ F = extraer_conjunto(sub, "[prueba]")
 print("tiempo: %.1f s  ->  proyeccion para 4032 ventanas: %.1f min"
       % (time.time() - t0, (time.time() - t0) / max(len(F), 1) * 4032 / 60))
 print("columnas nuevas:", F.shape[1] - 1)
+porcanal = {}
+for c in F.columns:
+    if c == "window_id": continue
+    porcanal[c.split("__")[0]] = porcanal.get(c.split("__")[0], 0) + 1
+print("features por canal:", porcanal)
+esperados = set()
+for _, r_ in sub.head(50).iterrows():
+    if "channels" in r_ and pd.notna(r_["channels"]):
+        esperados |= set(str(r_["channels"]).split("|"))
+faltan_ch = [c for c in esperados if c not in porcanal]
+if faltan_ch:
+    print("  >>> ATENCION: estos canales no produjeron NINGUNA feature:", faltan_ch)
+    print("      revisar longitud minima, frecuencia de muestreo y nombre del canal")
 F.head(3)
 '''))
 C.append(co('''
@@ -297,6 +330,8 @@ else:
     if resumen:
         peor = min(resumen)
         print("\\nAUC minima entre los tres pares: %.3f" % peor)
+        print("(ojo: es el MAXIMO sobre ~%d columnas, asi que esta sesgada al alza;" % len(cols))
+        print(" por eso el umbral se pone en 0.75 y no en 0.70)")
         print("VEREDICTO:", "SIRVE, continuar" if peor > 0.75 else
               ("MARGINAL, ver nota" if peor > 0.65 else "NO SIRVE, revisar el extractor antes de seguir"))
         print("(referencia: con las features tabulares solas, F03 vs F04 da 0.695 y F03 vs F05 da 0.714)")
@@ -401,6 +436,7 @@ def construir(df, raw=None):
     tmp=fis.copy(); tmp["machine_id"]=df["machine_id"].to_numpy()
     X=pd.concat([fis, zmaq(tmp,list(fis.columns))],axis=1)
     if raw is not None:
+        assert not raw["window_id"].duplicated().any(), "raw tiene window_id repetido: el merge desalinearia las filas"
         r=df[["window_id"]].merge(raw,on="window_id",how="left")
         r=r.drop(columns=["window_id"]).replace([np.inf,-np.inf],np.nan).fillna(0.0)
         r.index=X.index
@@ -491,6 +527,8 @@ C.append(md("""
 C.append(co('''
 GENERAR = True
 if GENERAR:
+    if "res" not in dir() or "con NPZ" not in res:
+        raise RuntimeError("correr el paso 5 antes: la eleccion de features depende de su medicion")
     Xf_tr, Xf_te = (Xtr_r, Xte_r) if np.mean(res["con NPZ"]) > np.mean(res["sin NPZ"]) else (Xtr_b, Xte_b)
     print("usando:", Xf_tr.shape[1], "columnas")
     P = proba_k([lgbm(14,RS),et(RS),rf(RS)], Xf_tr, estado, Xf_te, 14)
