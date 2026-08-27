@@ -1,10 +1,5 @@
 # hackathon-kit
-
-Herramientas para competencias de ML con **métrica de costo asimétrico**,
-presupuesto limitado de envíos y poco tiempo. Hackathon IA — FI-UNaM.
-
 **Equipo:** Acosta · Borges · Pelinski
-
 ```bash
 git clone https://github.com/AcostaAlex10/hackathon-kit-Acosta-Borges-Pelinski.git
 cd hackathon-kit-Acosta-Borges-Pelinski
@@ -69,8 +64,7 @@ configuración.
 
 **Decisión sensible al costo.** Con matriz de costos asimétrica, `argmax p(y|x)`
 no es óptimo. Lo óptimo es `argmin_j Σ_i p(i|x)·C[i,j]`
-(`costs.bayes_decision`). En pruebas con datos sintéticos bajó el costo de 0.729
-a 0.574 sin tocar el modelo.
+(`costs.bayes_decision`). 
 
 **Detección de trampas.** `traps.run_all()` busca, antes de entrenar, las
 trampas que castigan a las soluciones automáticas: fugas, covariate shift, prior
@@ -78,7 +72,7 @@ shift, orden de filas, atajos de fondo en imágenes, ruido de etiquetas.
 
 **Gestión de envíos y probatorio.** `SubmitLog` lleva el presupuesto de 10
 envíos y la correlación validación↔ranking; `probatorio.generar_notebook()`
-arma el entregable del art. 5 como notebook autocontenido en los últimos 30 min.
+arma el entregable del art.
 
 ## Adaptar a un desafío nuevo
 
