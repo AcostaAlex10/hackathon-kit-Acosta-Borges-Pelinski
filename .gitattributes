@@ -1,0 +1,13 @@
+# Normaliza saltos de linea: en el repo siempre LF (lo que espera la nube/Linux).
+# Sin esto, editar en Windows y clonar en la nube marca todo como modificado.
+* text=auto eol=lf
+
+# Los notebooks son texto (JSON): que git los versione y los diffee como tal.
+*.ipynb text eol=lf
+
+# Binarios: nunca tocar.
+*.png binary
+*.jpg binary
+*.zip binary
+*.npy binary
+*.pkl binary
