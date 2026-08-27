@@ -297,8 +297,16 @@ adivinar la geometría. Es más columnas pero no depende de un supuesto.
 
 ## 9. Archivos en la rama `Borges`
 
+Tras mezclar `main`, la rama tiene todo el trabajo del equipo.
+
 | Archivo | Qué es |
 |---|---|
+| `eda_y_benchmark__base4.ipynb` (raíz) | **el que dio 48,1150. Punto de partida.** 69 celdas, 39 con salida |
+| `notebooks/eda_y_benchmark__base4.ipynb` | copia anterior, 65 celdas. **La de la raíz es la buena** |
+| `notebooks/eda_y_benchmark__Intento3.ipynb` | versión previa a base4 |
+| `notebooks/eda_y_benchmark__Ana*.ipynb` | intentos anteriores del equipo |
+| `notebooks/submits/submit-48.csv` | la entrega que dio 48,1150 |
+| `notebooks/submits/submit-43.csv` | la que dio 43,4248 |
 | `estrategia1_Borges.md` | estrategia completa, revisión 4. Leer después de esto |
 | `raw_feats.py` | extracción de señal cruda, validada en sintético |
 | `machine_health_v3.ipynb` | features físicas + doble validación. Ejecutado |
@@ -306,8 +314,9 @@ adivinar la geometría. Es más columnas pero no depende de un supuesto.
 | `eda_y_benchmark.ipynb` | benchmark multimodelo de la mañana |
 | `TRASPASO_NPZ.md` | este documento |
 
-`base4.ipynb` —el que dio 48,1150— **lo tiene el usuario, no está en el repo.**
-Pedírselo al arrancar.
+**Ojo con las dos copias de `base4`:** la de la raíz y la de `notebooks/` no son
+el mismo archivo (69 contra 65 celdas). Trabajar sobre la de la **raíz**, que es
+la más avanzada, y borrar la otra cuando alguien confirme que no se pierde nada.
 
 ---
 
