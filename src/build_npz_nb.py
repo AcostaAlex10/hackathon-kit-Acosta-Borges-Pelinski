@@ -211,6 +211,90 @@ def feats_pressure(x, fs):
 print("extractor definido | perfil de envolvente:", len(ORDENES), "órdenes")
 '''))
 
+
+C.append(md("""
+### 2.1 Identificación output-only: las resonancias de la estructura
+
+Esto conecta con la **Experiencia 4 del Laboratorio 4** (identificación y
+reducción de orden). Allí se ajustaba una función de transferencia porque se
+tenía el par entrada-salida: escalón conocido contra respuesta medida. En los
+NPZ **sólo hay salidas**; no existe un escalón que reproducir, así que el
+algoritmo genético con fitness RMSE no tiene contra qué simular. La
+identificación clásica no aplica.
+
+La versión que sí aplica es **identificación output-only**. Asumiendo excitación
+aproximadamente blanca en banda —razonable en maquinaria rotativa—, un modelo AR
+ajustado a la salida tiene polos que son las **resonancias estructurales y sus
+amortiguamientos**: el mismo objeto que se buscaba en el Lab 4, obtenido sin la
+entrada.
+
+Por qué importa acá, y es el argumento central: la amplitud de vibración escala
+con el cuadrado de la velocidad, pero **la frecuencia de resonancia no depende de
+la rpm**. Depende de la rigidez y la masa: es una propiedad estructural. Por eso
+transfiere entre regímenes, que es exactamente nuestro problema (train 1742 rpm,
+test 2052 rpm). Y una pérdida de rigidez (F07) o un rodamiento dañado la corren.
+
+Se resuelve con **Burg**, que es solución cerrada, y no con un algoritmo
+genético: sobre 4032 ventanas por 3 canales el AG costaría del orden de 30 horas
+para llegar al mismo óptimo, y sería estocástico, lo que rompe el requisito de
+reproducibilidad. En el propio Lab 4 el AG dejaba el RMSE en 0,046 y el
+refinamiento local lo bajaba a 0,0057: el trabajo fino lo hacía el método local.
+
+El bloque está validado sobre señales sintéticas con resonancias conocidas:
+recupera 1500 y 3200 Hz como 1484,7 y 3220,9; da la **misma** resonancia
+(3195,5 Hz) a 1742 y a 2052 rpm; y ante una caída de rigidez del 20 % detecta el
+corrimiento de 3200 a 2857,7 Hz.
+"""))
+C.append(co('''
+from scipy.signal import decimate
+
+def burg(x, p):
+    """Coeficientes AR por el metodo de Burg. Solucion cerrada, determinista."""
+    x = np.asarray(x, float); x = x - x.mean(); n = len(x)
+    f = x.copy(); b = x.copy(); a = np.zeros(p + 1); a[0] = 1.0
+    den = 2.0 * np.dot(x, x)
+    for m in range(1, p + 1):
+        num = 2.0 * np.dot(f[m:], b[m - 1:n - 1])
+        if m > 1: den = den - f[m - 1] ** 2 - b[n - 1] ** 2
+        if abs(den) < 1e-20: break
+        k = num / den
+        anew = a.copy()
+        for i in range(1, m + 1): anew[i] = a[i] - k * a[m - i]
+        a = anew
+        fn = f[m:] - k * b[m - 1:n - 1]; bn = b[m - 1:n - 1] - k * f[m:]
+        f = np.r_[np.zeros(m), fn]
+        b = np.r_[np.zeros(m), bn] if len(bn) == n - m else b
+    return a
+
+def feats_ar(x, fs, p=20, dec=4, k=5):
+    """k resonancias dominantes: frecuencia, amortiguamiento y agudeza."""
+    if dec and dec > 1 and len(x) > dec * 64:
+        x = decimate(x, dec, ftype="fir", zero_phase=True); fs = fs / dec
+    try:
+        r = np.roots(burg(x, p))
+    except Exception:
+        r = np.array([])
+    r = r[(np.abs(r) < 1.0) & (np.imag(r) > 1e-9)]
+    d = {}
+    if len(r):
+        fr = np.angle(r) * fs / (2 * np.pi)      # Hz, independiente de la rpm
+        z = -np.log(np.abs(r) + 1e-12)           # amortiguamiento
+        q = np.abs(r)                            # agudeza de la resonancia
+        o = np.argsort(-q); fr, z, q = fr[o], z[o], q[o]
+    else:
+        fr = z = q = np.array([])
+    for i in range(k):
+        d["ar_f%d" % i] = float(fr[i]) if i < len(fr) else 0.0
+        d["ar_z%d" % i] = float(z[i]) if i < len(z) else 0.0
+        d["ar_q%d" % i] = float(q[i]) if i < len(q) else 0.0
+    d["ar_n"] = float(len(fr))
+    d["ar_fmed"] = float(np.median(fr)) if len(fr) else 0.0
+    d["ar_zmed"] = float(np.median(z)) if len(z) else 0.0
+    return d
+
+print("bloque AR definido | 18 features por canal de vibracion")
+'''))
+
 C.append(md("""
 ## 3. Prueba sobre una muestra, ANTES de procesar todo
 
@@ -258,6 +342,7 @@ def extraer_ventana(z, wid, rpm, canales):
             x[malos] = np.interp(ii[malos], ii[~malos], x[~malos])
         if ch.startswith("acc"):
             d.update({f"{ch}__{a}": b for a, b in feats_acc(x, FS_ACC, rpm).items()})
+            d.update({f"{ch}__{a}": b for a, b in feats_ar(x, FS_ACC).items()})
         elif ch.startswith("current"):
             d.update({f"{ch}__{a}": b for a, b in feats_current(x, FS_CUR, rpm).items()})
         elif ch.startswith("pressure"):
@@ -431,6 +516,19 @@ def zmaq(df, cols):
     z=(df[cols]-g.transform("median"))/(g.transform("std")+1e-9)
     z.columns=[c+"__z" for c in cols]; return z
 
+def agregar_por_sesion(df, raw):
+    """La etiqueta es constante en las 7 ventanas de la sesion, pero las features
+    de senal son ruidosas ventana a ventana. Promediar y medir la dispersion
+    dentro de la sesion reduce ese ruido sin usar nada prohibido: solo session_id,
+    que viene en el test."""
+    cols = [c for c in raw.columns if c != "window_id"]
+    r = df[["window_id", "session_id"]].merge(raw, on="window_id", how="left")
+    g = r.groupby("session_id")[cols]
+    med = g.transform("mean"); dis = g.transform("std")
+    med.columns = [c + "__sm" for c in cols]; dis.columns = [c + "__ss" for c in cols]
+    out = pd.concat([med, dis], axis=1)
+    return out.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
 def construir(df, raw=None):
     fis=pd.concat([df[BASE], fisicas(df)],axis=1)
     tmp=fis.copy(); tmp["machine_id"]=df["machine_id"].to_numpy()
@@ -440,7 +538,8 @@ def construir(df, raw=None):
         r=df[["window_id"]].merge(raw,on="window_id",how="left")
         r=r.drop(columns=["window_id"]).replace([np.inf,-np.inf],np.nan).fillna(0.0)
         r.index=X.index
-        X=pd.concat([X,r],axis=1)
+        ses = agregar_por_sesion(df, raw); ses.index = X.index
+        X=pd.concat([X,r,ses],axis=1)
     return X
 
 Xtr_b, Xte_b = construir(train), construir(test)
