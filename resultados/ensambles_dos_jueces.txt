@@ -1,0 +1,17 @@
+X: (1750, 174)
+
+ensamble     GroupKFold (3 sem)     5 cortes de regimen
+--------------------------------------------------------------
+lgb+et+rf     54.07                  45.21 +- 1.67   [43.7 43.3 47.2 47.1 44.7]
+lgb+rf+lr     54.34                  42.88 +- 1.37   [41.0 41.6 43.7 43.6 44.6]
+lr sola       51.02                  37.96 +- 1.85   [34.8 37.3 39.1 38.2 40.3]
+
+Lectura:
+- lgb+rf+lr gana en GroupKFold (54.34 vs 54.07) y pierde 2.33 puntos bajo cambio
+  de regimen (42.88 vs 45.21). Es la razon por la que NO se uso, pese a haber
+  sido el mejor en el notebook que lo eligio con GroupKFold.
+- La regresion logistica sola se desploma 13 puntos entre un juez y el otro
+  (51.02 -> 37.96): extrapola linealmente a un regimen que no vio. Los arboles
+  saturan en el borde del rango conocido.
+- En GroupKFold la diferencia entre ensambles es de 3 puntos; bajo regimen es de
+  7.3. El juez equivocado ordena mal Y comprime las diferencias.
