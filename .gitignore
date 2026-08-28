@@ -6,6 +6,12 @@ env/
 # datos del desafio real: NUNCA subir el dataset de la catedra al repo
 data/
 *.zip
+# nombres que usan las celdas de descarga del notebook
+data_challenge_new/
+data_from_drive/
+data_from_raw/
+# submissions generadas localmente (las que se entregan van en notebooks/submits/)
+outputs/
 
 # salidas de trabajo
 work/
