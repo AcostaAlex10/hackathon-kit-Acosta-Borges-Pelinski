@@ -1,0 +1,20 @@
+{
+  "archivo": "notebooks/submits/submit-347col-ens4-jer01.csv",
+  "generado_por": "notebooks/eda_y_benchmark_limpio.ipynb, seccion 10.8",
+  "matriz": "347 columnas (base + fisicas + z + NPZ vib/cur/prs + v2 cur2/vib2/cross + z con pool de train_unlabeled)",
+  "receta": {
+    "modelos": [
+      "LightGBM",
+      "XGBoost",
+      "CatBoost",
+      "RandomForest"
+    ],
+    "w_mezcla_jerarquico": 0.1,
+    "pooling_sesion": "ninguno",
+    "temperatura": 1.0
+  },
+  "oof_ensamble_w0": 58.25,
+  "sd_folds_ensamble": 1.93,
+  "confirmacion_semillas": "diferencia 42 vs 2024 = -0.17",
+  "advertencia": "corrido con scikit-learn 1.9.0 en el contenedor, no en Colab: los folds de StratifiedGroupKFold NO coinciden con los de limpio1, asi que estos numeros no son comparables con los 55.35 medidos alli"
+}
