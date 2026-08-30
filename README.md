@@ -1,95 +1,137 @@
-# hackathon-kit
-**Equipo:** Acosta · Borges · Pelinski
-```bash
-git clone https://github.com/AcostaAlex10/hackathon-kit-Acosta-Borges-Pelinski.git
-cd hackathon-kit-Acosta-Borges-Pelinski
-python bootstrap.py --install
-```
+# Machine Health — Hackathon IC415
 
-Si termina con `AUTOTEST OK`, el kit funciona en esa máquina. Si LightGBM no
-instala, degrada solo a scikit-learn y sigue andando.
+**Equipo:** Acosta · Borges · Pelinski — **🏆 1.er puesto**
 
-**Empezá por [GUIA_EQUIPO.md](GUIA_EQUIPO.md).**
- Link Drives (carpeta): https://drive.google.com/drive/folders/1kyRNNxSvUPi32SArW604XIqCf8_ekjn7?usp=sharing
- 
- participant_kit: https://drive.google.com/uc?id=1FKuxVH--rRJiK8tzfT_T8BW1WVj8v6wV
- 
- datos: https://drive.google.com/uc?id=1egI4fn6_DSu6gpyguU5pWX93J7jDTxB5
- 
- datos_sinraw: https://drive.google.com/uc?id=1fd4f0MuMiuUT0IEZxfLONMF6gD4hGIND
+Mantenimiento predictivo sobre un banco de bombas: dado un registro de 2 segundos
+de una máquina, decidir si está sana o cuál de 13 fallas tiene, y con eso elegir
+la acción de mantenimiento más barata.
+
+**Resultado final: 50,6966** en el servidor, con el notebook
+[`notebooks/4_nzp1.ipynb`](notebooks/4_nzp1.ipynb).
+
+---
+
+## Por dónde empezar
+
+| Si querés… | Andá a |
+|---|---|
+| entender el problema y la solución sin leer código | [`docs/Machine_Health_NPZ_guia.pdf`](docs/Machine_Health_NPZ_guia.pdf) |
+| la versión para exponer | [`docs/Machine_Health_guia_exposicion.pdf`](docs/Machine_Health_guia_exposicion.pdf) |
+| la consigna original | [`docs/Consigna_Hackathon.pdf`](docs/Consigna_Hackathon.pdf) |
+| el notebook que ganó | [`notebooks/4_nzp1.ipynb`](notebooks/4_nzp1.ipynb) |
+| ver cómo se llegó ahí | la tabla de abajo, en orden |
+
+---
+
+## La cadena de intentos
+
+Cada notebook es un envío real al servidor. Están numerados en el orden en que
+se hicieron, y cada uno parte del anterior.
+
+| # | Notebook | Qué agrega | Cols | Score servidor |
+|---|---|---|---|---|
+| — | — | primer intento | — | 28 |
+| — | — | descriptores crudos + z-score por máquina, ensamble | 92 | 43,42 |
+| 1 | [`1_base4.ipynb`](notebooks/1_base4.ipynb) | **42 variables físicas** + z por máquina | 174 | **48,1150** |
+| 2 | [`2_base4.5.ipynb`](notebooks/2_base4.5.ipynb) | protocolo de validación por cambio de régimen | 174 | — |
+| 3 | [`3_v5.ipynb`](notebooks/3_v5.ipynb) | primera etapa de señales crudas, con compuerta de decisión | — | — |
+| 4 | [`4_nzp1.ipynb`](notebooks/4_nzp1.ipynb) | **features espectrales de los NPZ** (vibración, corriente, presión) | 249 | **50,6966** ✅ |
+
+Los CSV enviados están en [`submits/`](submits/), con el score en el nombre.
+
+### Lo que midió cada matriz de features (OOF, métrica oficial)
+
+`OOF` = *out-of-fold*: se parte el train en 5 folds con `StratifiedGroupKFold`
+agrupando por `machine_id`, y cada fila se predice con un modelo que nunca la vio.
+
+| Matriz de features | Cols | Mejor individual | Mejor ensamble |
+|---|---|---|---|
+| Piso: prevalencia constante (baseline de la cátedra) | — | 30,78 | — |
+| `ana_z` — 46 originales + z por máquina | 92 | XGBoost 45,52 | LGB+RF+RegLog 47,33 |
+| `fis_z` — + 42 variables físicas | 174 | CatBoost 50,86 | LGB+RF+RegLog 51,98 |
+| + vibración NPZ normalizada | 201 | CatBoost 50,88 | — |
+| + corriente NPZ | 227 | LightGBM 52,84 | — |
+| + presión NPZ | 249 | XGBoost **53,07** | — |
+| Techo: oráculo (etiquetas exactas) | — | 73,96 | — |
+
+---
+
+## Los siete hechos que gobiernan el problema
+
+Están medidos, no estimados. Cualquiera que retome el repo debería leerlos antes
+de proponer nada.
+
+1. **No es multilabel.** `is_combo = 0` en las 1750 filas: es **multiclase de 14
+   estados excluyentes** (sano + 13 fallas). Se modela con softmax, no con 13
+   clasificadores binarios.
+2. **La etiqueta es constante dentro de cada sesión** (250 de 250) y cada sesión
+   tiene exactamente 7 ventanas. **El n efectivo es 250, no 1750.**
+3. **Train y test no comparten ninguna máquina** (26 vs 22, intersección vacía)
+   **y el régimen cambia**: `rpm_mean` 1742 → 2052, `delta_p_mean` 0,51 → 2,61.
+   De acá sale la normalización por máquina, que es la palanca central del repo.
+4. **El 70 % del score se juega en la FAMILIA**, no en la falla exacta. Confundir
+   F03 con F04 no cambia `cost_score`: misma familia, misma acción.
+5. **El techo real es 73,96, no 100.** Aun con predicción perfecta hay que pagar
+   la inspección.
+6. **El baseline de la cátedra no es pasivo:** elige INSPECT mecánica en las 1848
+   ventanas. Para superarlo hay que acertar la familia más del 46 % de las veces.
+7. **La capa de decisión de la métrica ya es óptima** (coincide en el 99,1 % con
+   la acción óptima bajo nuestro posterior). No hay nada que ganar distorsionando
+   probabilidades.
+
+**La métrica:** 70 % `cost_score` (decisión de mantenimiento) + 20 % `prob_score`
+(calibración) + 10 % `diag_score` (macro-F1).
+
+---
+
+## Las ramas
+
+El repo tiene cuatro ramas y ninguna más. `main` es el registro de lo que se
+probó y se envió; las otras tres son el cuaderno de trabajo de cada integrante.
+
+| Rama | Qué hay |
+|---|---|
+| **`main`** | esta cadena de intentos, los submits, las guías y el material de la cátedra |
+| **`Acosta`** | features físicas, EDA dirigido, fase NPZ con AR-Burg, auditoría de bugs |
+| **`Borges`** | benchmark multimodelo, el protocolo de validación por régimen, módulo de señal cruda |
+| **`Pelinski`** | el notebook nzp1 que ganó, la sección 10 de palancas, matriz de 347 columnas |
+
+Las tres ramas personales tienen líneas de trabajo distintas, pero **el trabajo
+fue de a tres en todas**: las decisiones se discutieron y se midieron en grupo, y
+cada rama recibió aportes de los otros dos. La separación es de organización, no
+de autoría.
 
 ---
 
 ## Estructura
 
 ```
-├── GUIA_EQUIPO.md           <- LEER PRIMERO. Qué hace cada cosa y cómo se usa.
-├── PLAYBOOK_HACKATHON.md    <- cronograma real de la jornada, roles, envíos
-├── CONTEXTO_CLAUDE.md       <- para pasarle a una sesión de Claude Code
-├── TRASPASO.md              <- estado del proyecto y handoff entre sesiones
-├── bootstrap.py             <- arranque + autotest en una máquina desconocida
-├── requirements.txt
-├── run_tabular.py           <- baseline tabular completo, de CSV a submit.csv
-├── run_vision.py            <- baseline de imágenes (Colab con GPU)
 ├── notebooks/
-│   ├── BASE_tabular.ipynb   <- plantilla de arranque para desafío con CSV
-│   ├── BASE_vision.ipynb    <- plantilla para imágenes (Keras, stack de cátedra)
-│   └── arranque_colab.ipynb <- esqueleto mínimo para armar a mano
-├── ic_kit/
-│   ├── costs.py             matrices de costo + decisión de mínimo costo
-│   ├── cleaning.py          auditoría y limpieza de datos sucios
-│   ├── eda.py               EDA prearmado orientado a la métrica
-│   ├── traps.py             detector de trampas del dataset
-│   ├── tabular.py           OOF, blend, fit_prior, pseudo-labeling
-│   ├── vision.py            TTA, duplicados, etiquetas ruidosas
-│   ├── checkpoints.py       reanudación tras caída de Colab
-│   ├── bitacora.py          registro de hipótesis/hallazgos/decisiones
-│   ├── submit.py            validador + gestor de los 10 envíos
-│   └── probatorio.py        probatorio como notebook autocontenido
-└── contexto/                material fuente: reglamento, memoria, desafíos previos
+│   ├── 1_base4.ipynb … 4_nzp1.ipynb   <- la cadena de intentos, en orden
+│   └── BASE_tabular / BASE_vision / arranque_colab.ipynb   <- plantillas del kit
+├── submits/                <- los CSV enviados, con el score en el nombre
+├── docs/
+│   ├── Machine_Health_NPZ_guia.pdf         <- guía de estudio del notebook final
+│   ├── Machine_Health_guia_exposicion.pdf  <- guía para exponer
+│   ├── Consigna_Hackathon.pdf
+│   ├── GUIA_EQUIPO.md      <- qué hace cada pieza del kit
+│   └── proceso/            <- handoffs entre sesiones, cronograma de la jornada
+├── ic_kit/                 <- kit de la cátedra (costs.py trae el scoring)
+├── contexto/               <- reglamento, memoria de la materia, desafíos previos
+├── bootstrap.py            <- arranque + autotest
+└── run_tabular.py, run_vision.py
 ```
 
-`work/`, `.venv/` y `data/` quedan fuera del repo (`.gitignore`). El dataset del
-desafío **nunca** va al repo.
+Los datos del desafío **no van al repo** (`.gitignore`). Los notebooks los
+descargan en su primera celda.
 
-## Uso en 30 segundos
+## Reproducir
 
 ```bash
-python run_tabular.py --train data/train.csv --test data/test.csv \
-    --target nivel_urgencia --id id_paciente --cost d1 --out work/submit.csv
+git clone https://github.com/AcostaAlex10/hackathon-kit-Acosta-Borges-Pelinski.git
+cd hackathon-kit-Acosta-Borges-Pelinski
+python bootstrap.py --install     # termina en AUTOTEST OK si el kit quedó bien
 ```
 
-En una corrida: auditoría de columnas sucias, limpieza, dos modelos, blend,
-decisión óptima según costo, informe de dónde se va el costo, `submit.csv` y su
-validación.
-
-Para la jornada real, arrancá desde `notebooks/BASE_tabular.ipynb` (o
-`BASE_vision.ipynb`): traen el recorrido completo y sólo se toca la celda de
-configuración.
-
-## Lo que hace distinto a este kit
-
-**Decisión sensible al costo.** Con matriz de costos asimétrica, `argmax p(y|x)`
-no es óptimo. Lo óptimo es `argmin_j Σ_i p(i|x)·C[i,j]`
-(`costs.bayes_decision`). 
-
-**Detección de trampas.** `traps.run_all()` busca, antes de entrenar, las
-trampas que castigan a las soluciones automáticas: fugas, covariate shift, prior
-shift, orden de filas, atajos de fondo en imágenes, ruido de etiquetas.
-
-**Gestión de envíos y probatorio.** `SubmitLog` lleva el presupuesto de 10
-envíos y la correlación validación↔ranking; `probatorio.generar_notebook()`
-arma el entregable del art.
-
-## Adaptar a un desafío nuevo
-
-Lo único específico es la matriz de costos. En `ic_kit/costs.py`, o como CSV:
-
-```python
-MI_COSTO = np.array([[0, 1, 5],
-                     [2, 0, 1],
-                     [8, 3, 0]], dtype=float)   # C[real, predicho]
-```
-
-y `--cost ruta.csv` más `--classes "a;b;c"` **en el mismo orden que las filas de
-la matriz**.
+Después, abrir `notebooks/4_nzp1.ipynb` y correrlo de arriba abajo: las primeras
+celdas bajan los datos y las señales crudas.
